@@ -1,6 +1,4 @@
-let gl, canvas, aspect_ratio, glProgram, fragmentShader, vertexShader;
-let aPos, aNormal;
-let style;
+let gl, canvas, glProgram, style;
 let teapotMesh, positionBuffer, indexBuffer, wireframeBuffer, normalBuffer;
 
 const TARGET_ASPECT = 1.0;
@@ -13,24 +11,26 @@ function makeShader(source, type) {
     return shader;
 }
 
-function initShaders() {
-    let vertex_shader_source = document.getElementById("vertex-shader").innerHTML;
-    let fragment_shader_source = document.getElementById("fragment-shader").innerHTML;
-
-    vertexShader = makeShader(vertex_shader_source, gl.VERTEX_SHADER);
-    fragmentShader = makeShader(fragment_shader_source, gl.FRAGMENT_SHADER);
-
+async function setupShaders() {
     glProgram = gl.createProgram();
 
-    gl.attachShader(glProgram, vertexShader);
-    gl.attachShader(glProgram, fragmentShader);
-    gl.linkProgram(glProgram);
+    const [vertexShaderSrc, fragmentShaderSrc] = await Promise.all([
+        fetch('main.vert').then(r => r.text()),
+        fetch('main.frag').then(r => r.text())
+    ]);
 
+    const vertexShader = makeShader(vertexShaderSrc, gl.VERTEX_SHADER);
+    gl.attachShader(glProgram, vertexShader);
+
+    const fragmentShader = makeShader(fragmentShaderSrc, gl.FRAGMENT_SHADER);
+    gl.attachShader(glProgram, fragmentShader);
+
+    gl.linkProgram(glProgram);
     gl.useProgram(glProgram);
 }
 
-function setupBuffers() {
-    const teapotText = document.getElementById("teapot-obj").innerHTML;
+async function setupBuffers() {
+    const teapotText = await fetch('teapot.obj').then(r => r.text());
     teapotMesh = parseOBJ(teapotText);
 
     positionBuffer = gl.createBuffer();
@@ -135,8 +135,8 @@ function parseOBJ(text) {
 }
 
 function drawScene() {
-    aPos = gl.getAttribLocation(glProgram, "a_pos");
-    aNormal = gl.getAttribLocation(glProgram, "a_normal");
+    const aPos = gl.getAttribLocation(glProgram, "a_pos");
+    const aNormal = gl.getAttribLocation(glProgram, "a_normal");
 
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.enableVertexAttribArray(aPos);
@@ -156,7 +156,7 @@ function drawScene() {
 function onResize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    aspect_ratio = canvas.width / canvas.height;
+    const aspect_ratio = canvas.width / canvas.height;
 
     let width, height;
     if (aspect_ratio > TARGET_ASPECT) {
@@ -174,18 +174,18 @@ function onResize() {
 }
 
 function parseCSSColor(cssColor) {
-  const match = cssColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+    const match = cssColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
 
-  if (!match) {
-    return [0, 0, 0, 1];
-  }
+    if (!match) {
+        return [0, 0, 0, 1];
+    }
 
-  const r = parseInt(match[1], 10) / 255;
-  const g = parseInt(match[2], 10) / 255;
-  const b = parseInt(match[3], 10) / 255;
-  const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
+    const r = parseInt(match[1], 10) / 255;
+    const g = parseInt(match[2], 10) / 255;
+    const b = parseInt(match[3], 10) / 255;
+    const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
 
-  return [r, g, b, a];
+    return [r, g, b, a];
 }
 
 let timeLast, frames;
@@ -195,7 +195,6 @@ function render() {
     if((time - timeLast) > 1) {
         const fps_div = document.getElementById("fps");
         fps_div.innerHTML = frames;
-
         timeLast = performance.now()/1000;
         frames = 0;
     }
@@ -262,7 +261,6 @@ function main() {
     style = getComputedStyle(document.querySelector('body'));
 
     gl = canvas.getContext("webgl");
-    console.log("[LOG] " + gl.getParameter(gl.VERSION));
     gl.disable(gl.CULL_FACE);
     gl.enable(gl.DEPTH_TEST);
     gl.depthMask(true);
@@ -270,12 +268,19 @@ function main() {
     timeLast = performance.now()/1000;
     frames = 0;
 
-    initShaders();
-    setupBuffers();
-
     onResize();
     window.addEventListener('resize', onResize);
+
+    (async () => {
+        await setupShaders();
+        console.log("[LOG]: Shaders done");
+
+        await setupBuffers();
+        console.log("[LOG]: Buffers done");
+
+        drawScene();
+        requestAnimationFrame(render);
+    })();
 }
 
 main();
-requestAnimationFrame(render);
