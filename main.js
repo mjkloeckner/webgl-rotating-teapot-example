@@ -171,7 +171,6 @@ function onResize() {
     canvas.style.height = height + 'px';
 
     gl.viewport(0, 0, canvas.width, canvas.height);
-    drawScene();
 }
 
 function parseCSSColor(cssColor) {
